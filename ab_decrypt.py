@@ -1,9 +1,9 @@
 # ab_decrypt.py
 # to decrypt Android backups done using "adb backup"
 # lclevy@free.fr (@lorenzo2472) Nov 2016
-# requirements : PyCrypto 3.3, Python 2.7.12
+# requirements : PyCrypto 2.6, Python 2.7.12
 # not memory optimized, as decryption and decompression are done in memory !
-# checked with Android 4.4 and Android 7.0
+# checked with Android 5.1 and Android 7.0
 # references:
 #  https://nelenkov.blogspot.fr/2012/06/unpacking-android-backups.html
 #  https://android.googlesource.com/platform/frameworks/base/+/master/services/backup/java/com/android/server/backup/BackupManagerService.java
