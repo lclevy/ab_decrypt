@@ -1,14 +1,14 @@
 # ab_decrypt.py
 # to decrypt Android backups done using "adb backup"
 # lclevy@free.fr (@lorenzo2472) Nov 2016
-# requirements : PyCrypto 2.6, Python 2.7.12
+# requirements : PyCryptoDome 3.9.0, Python 3.7.3
 # not memory optimized, as decryption and decompression are done in memory !
-# checked with Android 5.1 and Android 7.0
+# checked with Android 5.1, 7.0 and 8.0
 # references:
 #  https://nelenkov.blogspot.fr/2012/06/unpacking-android-backups.html
 #  https://android.googlesource.com/platform/frameworks/base/+/master/services/backup/java/com/android/server/backup/BackupManagerService.java
 
-from __future__ import print_function
+#from __future__ import print_function
 
 import sys
 from binascii import unhexlify, hexlify
@@ -122,7 +122,7 @@ if header['encryption']==b'AES-256':
   # decrypt master key blob 
   decrypted = AES.new(key, AES.MODE_CBC, header['ukIV']).decrypt( header['mkBlob'] )
   # parse decrypted blob
-  Niv = ord( decrypted[0] ) # IV length
+  Niv = decrypted[0] # IV length
   iv = decrypted[1:1+Niv] # AES CBC IV
   Nmk = ord( decrypted[1+Niv:1+Niv+1] ) # master key length
   mk = decrypted[1+Niv+1:1+Niv+1+Nmk] # AES 256 key
