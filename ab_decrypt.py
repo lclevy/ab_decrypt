@@ -78,7 +78,7 @@ def masterKeyJavaConversion(k):
 parser = OptionParser()
 parser.add_option("-p", "--pw", dest="password", help="password")
 parser.add_option("-o", "--out", dest="output", default="backup.tar", help="output file")
-parser.add_option("-v", "--verbose", type='int', dest="verbose", help="verbose mode")
+parser.add_option("-v", "--verbose", type='int', dest="verbose", default=0, help="verbose mode")
 parser.add_option("-b", "--backup", dest="backup", help="input file")
 (options, args) = parser.parse_args()
 
