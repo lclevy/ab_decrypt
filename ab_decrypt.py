@@ -64,33 +64,29 @@ def masterKeyJavaConversion(k):
   # Narrowing Primitive Conversion : https://docs.oracle.com/javase/specs/jls/se8/html/jls-5.html#jls-5.1.3
   toUnsigned16bits = [ ctypes.c_ushort(x).value & 0xffff for x in toSigned ]
   if options.verbose>2:
-    for c in toUnsigned16bits: dprint('%x ' % c,end='')
-    dprint('')
+    dprint(('{:x} '*len(toUnsigned16bits)).format(*toUnsigned16bits))
   """ 
   The Java programming language represents text in sequences of 16-bit code UNITS, using the UTF-16 encoding. 
   https://docs.oracle.com/javase/specs/jls/se8/html/jls-3.html#jls-3.1
   """
-  toBytes = [ pack('>H',c) for c in toUnsigned16bits ] #unsigned short to bytes
+  toBytes = pack(f'>{len(toUnsigned16bits)}H', *toUnsigned16bits ) #unsigned short to bytes
   if options.verbose>2:
-    for c in toBytes: dprint(hexlify(c),end=',')
-    dprint('')
+    dprint(hexlify(toBytes, sep=',').decode('ascii'))
   
-  toUtf16be = [ codecs.decode(v,'UTF-16BE') for v in toBytes ] #from bytes to Utf16
+  toUtf16be = codecs.decode(toBytes,'UTF-16BE') #from bytes to Utf16
   if options.verbose>2:
-    for c in toUtf16be: dprint(repr(c),end='+')
-    dprint('')
+    dprint(hexlify(toUtf16be.encode('UTF-16BE'), sep='+').decode('ascii'))
   """ 
    https://developer.android.com/reference/javax/crypto/spec/PBEKeySpec.html
    \"Different PBE mechanisms may consume different bits of each password character. 
    For example, the PBE mechanism defined in PKCS #5 looks at only the low order 8 bits of each character, 
    whereas PKCS #12 looks at all 16 bits of each character. \"  
   """
-  toUft8 = [ codecs.encode(t,'UTF-8') for t in toUtf16be ] # char must be encoded as UTF-8 first
+  toUft8 = codecs.encode(toUtf16be,'UTF-8') # char must be encoded as UTF-8 first
   if options.verbose>2:
-    for c in toUft8: dprint(hexlify(c),end='+')
-    dprint('')
+    dprint(hexlify(toUft8, sep='+').decode('ascii'))
 
-  return bytes( b''.join(toUft8) )
+  return toUft8
 
 def chunkReader(f, chunkSize=CHUNK_SIZE):
   data = f.read(chunkSize)
