@@ -11,6 +11,7 @@
 #from __future__ import print_function
 
 import sys
+import platform
 from binascii import unhexlify, hexlify
 from Crypto.Protocol.KDF import PBKDF2
 from Crypto.Cipher import AES
@@ -19,6 +20,16 @@ from optparse import OptionParser
 import codecs
 from struct import pack
 import ctypes
+
+def inputtty(prompt=""):
+  if platform.system() == "Windows":
+    return input(prompt)
+  with open('/dev/tty', 'rb') as ftty:
+    if prompt:
+      with open('/dev/tty', 'wb') as fwtty:
+        fwtty.write(prompt.encode('utf8'))
+        fwtty.flush()
+    return ftty.readline().decode('utf8').rstrip("\n")
 
 def masterKeyJavaConversion(k):
   """
@@ -102,7 +113,7 @@ if options.verbose>1:
 
 if header['encryption']==b'AES-256':
   if options.password is None:
-    options.password = input("Enter Password: ")
+    options.password = inputtty("Enter Password: ")
   password = options.password.encode('utf-8')
   #get PBKDF2 parameters to decrypt master key blob
   header['upSalt'] = unhexlify( f.readline()[:-1] )
