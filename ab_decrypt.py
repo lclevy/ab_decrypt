@@ -165,6 +165,39 @@ def decompress(compressedDataIter, blockSize=CHUNK_SIZE):
   if not decompressobj.eof:
     raise RuntimeError("incomplete or truncated zlib stream")
 
+def ab2tar(f, options):
+  if f.readline()[:-1]!=b'ANDROID BACKUP':
+    dprint('not ANDROID BACKUP')
+    exit(1)
+
+  #parse header
+  header = readHeader(f)
+  if options.verbose>1:
+    dprint(header)
+
+  if header['encryption']==b'AES-256':
+    if options.password is None:
+      options.password = inputtty("Enter Password: ")
+    password = options.password.encode('utf-8')
+    compressedIter = decrypt(chunkReader(f), getAESDecrypter(header, password))
+  elif header['encryption']==b'none':
+    dprint('no encryption')
+    compressedIter = chunkReader(f)
+  else:
+    dprint('unknown encryption')
+    exit(1)
+
+  # decompression (zlib stream)
+  if options.output == '-':
+    out = sys.stdout.buffer
+  else:
+    out = open(options.output,'wb')
+  dprint('writing backup as .tar ... ', end='', flush=True)
+  for decData in decompress(compressedIter):
+    out.write(decData)
+  dprint(f'OK. Filename is \'{options.output}\', {out.tell()} bytes written.')
+  out.close()
+
 parser = OptionParser()
 parser.add_option("-p", "--pw", dest="password", help="password")
 parser.add_option("-o", "--out", dest="output", default="-", help="output file")
@@ -175,41 +208,6 @@ parser.add_option("-b", "--backup", dest="backup", help="input file")
 if options.backup is None:
   dprint('-b argument is mandatory')
   exit(1)
-  
-f=open(options.backup,'rb')
 
-if f.readline()[:-1]!=b'ANDROID BACKUP':
-  dprint('not ANDROID BACKUP')
-  exit(1)
-
-#parse header
-header = readHeader(f)
-if options.verbose>1:
-  dprint(header)
-
-if header['encryption']==b'AES-256':
-  if options.password is None:
-    options.password = inputtty("Enter Password: ")
-  password = options.password.encode('utf-8')
-  compressedIter = decrypt(chunkReader(f), getAESDecrypter(header, password))
-elif header['encryption']==b'none':
-  dprint('no encryption')
-  compressedIter = chunkReader(f)
-else:
-  dprint('unknown encryption')
-  exit(1)
-
-if options.verbose:
-  dprint('decompression... ', end='')
-# decompression (zlib stream)
-if options.output == '-':
-  out = sys.stdout.buffer
-else:
-  out = open(options.output,'wb')
-dprint('writing backup as .tar ... ', end='', flush=True)
-for decData in decompress(compressedIter):
-  out.write(decData)
-dprint(f'OK. Filename is \'{options.output}\', {out.tell()} bytes written.')
-out.close()
-
-f.close()
+with open(options.backup,'rb') as abfile:
+  ab2tar(abfile, options)
