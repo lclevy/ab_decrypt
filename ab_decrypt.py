@@ -112,7 +112,7 @@ def decompress(compressedDataIter, blockSize=CHUNK_SIZE):
 
 parser = OptionParser()
 parser.add_option("-p", "--pw", dest="password", help="password")
-parser.add_option("-o", "--out", dest="output", default="backup.tar", help="output file")
+parser.add_option("-o", "--out", dest="output", default="-", help="output file")
 parser.add_option("-v", "--verbose", type='int', dest="verbose", default=0, help="verbose mode")
 parser.add_option("-b", "--backup", dest="backup", help="input file")
 (options, args) = parser.parse_args()
@@ -194,7 +194,10 @@ else:
 if options.verbose:
   dprint('decompression... ', end='')
 # decompression (zlib stream)
-out = open(options.output,'wb')
+if options.output == '-':
+  out = sys.stdout.buffer
+else:
+  out = open(options.output,'wb')
 dprint('writing backup as .tar ... ', end='', flush=True)
 for decData in decompress(compressedIter):
   out.write(decData)
