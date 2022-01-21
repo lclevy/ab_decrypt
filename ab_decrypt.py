@@ -115,13 +115,13 @@ parser.add_option("-b", "--backup", dest="backup", help="input file")
 
 if options.backup is None:
   dprint('-b argument is mandatory')
-  exit()
+  exit(1)
   
 f=open(options.backup,'rb')
 
 if f.readline()[:-1]!=b'ANDROID BACKUP':
   dprint('not ANDROID BACKUP')
-  exit()
+  exit(1)
   
 #parse header   
 header = dict()  
@@ -185,8 +185,8 @@ elif header['encryption']=='none':
   compressedIter = chunkReader(f)
 else:
   dprint('unknown encryption')
-  exit()
-  
+  exit(1)
+
 if options.verbose:
   dprint('decompression... ', end='')
 # decompression (zlib stream)
