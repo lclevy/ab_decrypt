@@ -23,6 +23,11 @@ import ctypes
 
 CHUNK_SIZE=128*1024
 
+def dprint(*args, **kwargs):
+  kwargs.setdefault('file', sys.stderr)
+  kwargs.setdefault('flush', True)
+  print(*args, **kwargs)
+
 def inputtty(prompt=""):
   if platform.system() == "Windows":
     return input(prompt)
@@ -55,25 +60,25 @@ def masterKeyJavaConversion(k):
   """
   # Widening Primitive Conversion : https://docs.oracle.com/javase/specs/jls/se8/html/jls-5.html#jls-5.1.2
   toSigned = [ ctypes.c_byte(x).value for x in k ] #sign extension
-  if options.verbose>2: print(toSigned)
+  if options.verbose>2: dprint(toSigned)
   # Narrowing Primitive Conversion : https://docs.oracle.com/javase/specs/jls/se8/html/jls-5.html#jls-5.1.3
   toUnsigned16bits = [ ctypes.c_ushort(x).value & 0xffff for x in toSigned ]
   if options.verbose>2:
-    for c in toUnsigned16bits: print('%x ' % c,end='')
-    print('')  
+    for c in toUnsigned16bits: dprint('%x ' % c,end='')
+    dprint('')
   """ 
   The Java programming language represents text in sequences of 16-bit code UNITS, using the UTF-16 encoding. 
   https://docs.oracle.com/javase/specs/jls/se8/html/jls-3.html#jls-3.1
   """
   toBytes = [ pack('>H',c) for c in toUnsigned16bits ] #unsigned short to bytes
   if options.verbose>2:
-    for c in toBytes: print(hexlify(c),end=',')
-    print('')
+    for c in toBytes: dprint(hexlify(c),end=',')
+    dprint('')
   
   toUtf16be = [ codecs.decode(v,'UTF-16BE') for v in toBytes ] #from bytes to Utf16
   if options.verbose>2:
-    for c in toUtf16be: print(repr(c),end='+')
-    print('')
+    for c in toUtf16be: dprint(repr(c),end='+')
+    dprint('')
   """ 
    https://developer.android.com/reference/javax/crypto/spec/PBEKeySpec.html
    \"Different PBE mechanisms may consume different bits of each password character. 
@@ -82,8 +87,8 @@ def masterKeyJavaConversion(k):
   """
   toUft8 = [ codecs.encode(t,'UTF-8') for t in toUtf16be ] # char must be encoded as UTF-8 first
   if options.verbose>2:
-    for c in toUft8: print(hexlify(c),end='+')
-    print('')
+    for c in toUft8: dprint(hexlify(c),end='+')
+    dprint('')
 
   return bytes( b''.join(toUft8) )
 
@@ -113,13 +118,13 @@ parser.add_option("-b", "--backup", dest="backup", help="input file")
 (options, args) = parser.parse_args()
 
 if options.backup is None:
-  print('-b argument is mandatory')
+  dprint('-b argument is mandatory')
   exit()
   
 f=open(options.backup,'rb')
 
 if f.readline()[:-1]!=b'ANDROID BACKUP':
-  print('not ANDROID BACKUP')
+  dprint('not ANDROID BACKUP')
   exit()
   
 #parse header   
@@ -128,7 +133,7 @@ header['version'] = f.readline()[:-1]
 header['compression'] = f.readline()[:-1]
 header['encryption'] = f.readline()[:-1]
 if options.verbose>1:
-  print(header)
+  dprint(header)
 
 if header['encryption']==b'AES-256':
   if options.password is None:
@@ -141,11 +146,11 @@ if header['encryption']==b'AES-256':
   header['ukIV'] = unhexlify( f.readline()[:-1] )
   header['mkBlob'] = unhexlify( f.readline()[:-1] )
   if options.verbose>1:
-    print('user password salt:', hexlify( header['upSalt']) )
-    print('master key checksum salt:', hexlify(header['mkSumSalt']) )
-    print('number of PBKDF2 rounds:', header['round'] )
-    print('user key IV:', hexlify(header['ukIV']) )
-    print('master key blob:', hexlify(header['mkBlob']) )
+    dprint('user password salt:', hexlify( header['upSalt']) )
+    dprint('master key checksum salt:', hexlify(header['mkSumSalt']) )
+    dprint('number of PBKDF2 rounds:', header['round'] )
+    dprint('user key IV:', hexlify(header['ukIV']) )
+    dprint('master key blob:', hexlify(header['mkBlob']) )
   # generate AES key from password and salt
   key = PBKDF2(password, header['upSalt'], 32, header['round']) #default algo is sha1
   # decrypt master key blob 
@@ -158,42 +163,42 @@ if header['encryption']==b'AES-256':
   Nck = ord( decrypted[1+Niv+1+Nmk:1+Niv+1+Nmk+1] ) # check value length
   ck = decrypted[1+Niv+1+Nmk+1:1+Niv+1+Nmk+1+Nck] # check value
   if options.verbose>1:
-    print('IV length:',Niv)
-    print('IV:',hexlify(iv))
-    print('master key length:',Nmk)
-    print('master key:',hexlify(mk))
-    print('check value length:',Nck)
-    print('check value:',hexlify(ck))
+    dprint('IV length:',Niv)
+    dprint('IV:',hexlify(iv))
+    dprint('master key length:',Nmk)
+    dprint('master key:',hexlify(mk))
+    dprint('check value length:',Nck)
+    dprint('check value:',hexlify(ck))
     
   #verify password
   toBytes2 = masterKeyJavaConversion( bytearray(mk) ) # consider data as bytes, not str
   if options.verbose>1:
-    print('PBKDF2 secret value for password verification is: ', end='')
-    print( hexlify(toBytes2) )
+    dprint('PBKDF2 secret value for password verification is: ', end='')
+    dprint( hexlify(toBytes2) )
   ck2 = PBKDF2( toBytes2, header['mkSumSalt'], Nck, header['round'] ) 
   if ck2!=ck:
-    print( 'computed ck:', hexlify(ck2), 'is different than embedded ck:', hexlify(ck) )
+    dprint( 'computed ck:', hexlify(ck2), 'is different than embedded ck:', hexlify(ck) )
   else:
-    print('password verification is OK')  
+    dprint('password verification is OK')
   
   # decryption using master key and iv
   compressedIter = decrypt(chunkReader(f), AES.new(mk, AES.MODE_CBC, iv))
 
 elif header['encryption']=='none':
-  print('no encryption') 
+  dprint('no encryption')
   compressedIter = chunkReader(f)
 else:
-  print('unknown encryption')
+  dprint('unknown encryption')
   exit()
   
 if options.verbose:
-  print('decompression... ', end='')
+  dprint('decompression... ', end='')
 # decompression (zlib stream)
 out = open(options.output,'wb')
-print('writing backup as .tar ... ', end='', flush=True)
+dprint('writing backup as .tar ... ', end='', flush=True)
 for decData in decompress(compressedIter):
   out.write(decData)
-print(f'OK. Filename is \'{options.output}\', {out.tell()} bytes written.')
+dprint(f'OK. Filename is \'{options.output}\', {out.tell()} bytes written.')
 out.close()
 
 f.close()
