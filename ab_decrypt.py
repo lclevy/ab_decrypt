@@ -169,7 +169,7 @@ def decompress(compressedDataIter, blockSize=CHUNK_SIZE):
 def ab2tar(f, options):
   if f.readline()[:-1]!=b'ANDROID BACKUP':
     dprint('not ANDROID BACKUP')
-    exit(1)
+    return False
 
   #parse header
   header = readHeader(f)
@@ -186,7 +186,7 @@ def ab2tar(f, options):
     compressedIter = chunkReader(f)
   else:
     dprint('unknown encryption')
-    exit(1)
+    return False
 
   # decompression (zlib stream)
   if options.output == '-':
@@ -198,6 +198,7 @@ def ab2tar(f, options):
     out.write(decData)
   dprint(f'OK. Filename is \'{options.output}\', {out.tell()} bytes written.')
   out.close()
+  return True
 
 def main(argv):
   global VERBOSITY
@@ -211,10 +212,10 @@ def main(argv):
   VERBOSITY = options.verbose
   if options.backup is None:
     dprint('-b argument is mandatory')
-    exit(1)
+    return 1
 
   with open(options.backup,'rb') as abfile:
-    ab2tar(abfile, options)
+    return int(not ab2tar(abfile, options))
 
 if __name__ == "__main__":
-  main(sys.argv[1:])
+  exit(main(sys.argv[1:]))
