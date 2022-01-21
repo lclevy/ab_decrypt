@@ -21,6 +21,7 @@ import codecs
 from struct import pack
 import ctypes
 
+VERBOSITY=0
 CHUNK_SIZE=128*1024
 
 def dprint(*args, **kwargs):
@@ -53,7 +54,7 @@ def readHeader(f):
     header['round'] = int( f.readline()[:-1] )
     header['ukIV'] = unhexlify( f.readline()[:-1] )
     header['mkBlob'] = unhexlify( f.readline()[:-1] )
-    if options.verbose>1:
+    if VERBOSITY>1:
       dprint('user password salt:', hexlify( header['upSalt']) )
       dprint('master key checksum salt:', hexlify(header['mkSumSalt']) )
       dprint('number of PBKDF2 rounds:', header['round'] )
@@ -85,21 +86,21 @@ def masterKeyJavaConversion(k):
   """
   # Widening Primitive Conversion : https://docs.oracle.com/javase/specs/jls/se8/html/jls-5.html#jls-5.1.2
   toSigned = [ ctypes.c_byte(x).value for x in k ] #sign extension
-  if options.verbose>2: dprint(toSigned)
+  if VERBOSITY>2: dprint(toSigned)
   # Narrowing Primitive Conversion : https://docs.oracle.com/javase/specs/jls/se8/html/jls-5.html#jls-5.1.3
   toUnsigned16bits = [ ctypes.c_ushort(x).value & 0xffff for x in toSigned ]
-  if options.verbose>2:
+  if VERBOSITY>2:
     dprint(('{:x} '*len(toUnsigned16bits)).format(*toUnsigned16bits))
   """ 
   The Java programming language represents text in sequences of 16-bit code UNITS, using the UTF-16 encoding. 
   https://docs.oracle.com/javase/specs/jls/se8/html/jls-3.html#jls-3.1
   """
   toBytes = pack(f'>{len(toUnsigned16bits)}H', *toUnsigned16bits ) #unsigned short to bytes
-  if options.verbose>2:
+  if VERBOSITY>2:
     dprint(hexlify(toBytes, sep=',').decode('ascii'))
   
   toUtf16be = codecs.decode(toBytes,'UTF-16BE') #from bytes to Utf16
-  if options.verbose>2:
+  if VERBOSITY>2:
     dprint(hexlify(toUtf16be.encode('UTF-16BE'), sep='+').decode('ascii'))
   """ 
    https://developer.android.com/reference/javax/crypto/spec/PBEKeySpec.html
@@ -108,7 +109,7 @@ def masterKeyJavaConversion(k):
    whereas PKCS #12 looks at all 16 bits of each character. \"  
   """
   toUft8 = codecs.encode(toUtf16be,'UTF-8') # char must be encoded as UTF-8 first
-  if options.verbose>2:
+  if VERBOSITY>2:
     dprint(hexlify(toUft8, sep='+').decode('ascii'))
 
   return toUft8
@@ -126,7 +127,7 @@ def getAESDecrypter(header, password):
   mk = decrypted[1+Niv+1:1+Niv+1+Nmk] # AES 256 key
   Nck = ord( decrypted[1+Niv+1+Nmk:1+Niv+1+Nmk+1] ) # check value length
   ck = decrypted[1+Niv+1+Nmk+1:1+Niv+1+Nmk+1+Nck] # check value
-  if options.verbose>1:
+  if VERBOSITY>1:
     dprint('IV length:',Niv)
     dprint('IV:',hexlify(iv))
     dprint('master key length:',Nmk)
@@ -136,7 +137,7 @@ def getAESDecrypter(header, password):
   
   #verify password
   toBytes2 = masterKeyJavaConversion( bytearray(mk) ) # consider data as bytes, not str
-  if options.verbose>1:
+  if VERBOSITY>1:
     dprint('PBKDF2 secret value for password verification is: ', end='')
     dprint( hexlify(toBytes2) )
   ck2 = PBKDF2( toBytes2, header['mkSumSalt'], Nck, header['round'] )
@@ -172,7 +173,7 @@ def ab2tar(f, options):
 
   #parse header
   header = readHeader(f)
-  if options.verbose>1:
+  if VERBOSITY>1:
     dprint(header)
 
   if header['encryption']==b'AES-256':
@@ -198,16 +199,22 @@ def ab2tar(f, options):
   dprint(f'OK. Filename is \'{options.output}\', {out.tell()} bytes written.')
   out.close()
 
-parser = OptionParser()
-parser.add_option("-p", "--pw", dest="password", help="password")
-parser.add_option("-o", "--out", dest="output", default="-", help="output file")
-parser.add_option("-v", "--verbose", type='int', dest="verbose", default=0, help="verbose mode")
-parser.add_option("-b", "--backup", dest="backup", help="input file")
-(options, args) = parser.parse_args()
+def main(argv):
+  global VERBOSITY
+  parser = OptionParser()
+  parser.add_option("-p", "--pw", dest="password", help="password")
+  parser.add_option("-o", "--out", dest="output", default="-", help="output file")
+  parser.add_option("-v", "--verbose", type='int', dest="verbose", default=0, help="verbose mode")
+  parser.add_option("-b", "--backup", dest="backup", help="input file")
+  (options, args) = parser.parse_args()
 
-if options.backup is None:
-  dprint('-b argument is mandatory')
-  exit(1)
+  VERBOSITY = options.verbose
+  if options.backup is None:
+    dprint('-b argument is mandatory')
+    exit(1)
 
-with open(options.backup,'rb') as abfile:
-  ab2tar(abfile, options)
+  with open(options.backup,'rb') as abfile:
+    ab2tar(abfile, options)
+
+if __name__ == "__main__":
+  main(sys.argv[1:])
