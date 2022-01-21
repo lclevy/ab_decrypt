@@ -38,6 +38,31 @@ def inputtty(prompt=""):
         fwtty.flush()
     return ftty.readline().decode('utf8').rstrip("\n")
 
+def readHeader(f):
+  header = dict()
+  header['version'] = f.readline()[:-1]
+  header['compression'] = f.readline()[:-1]
+  header['encryption'] = f.readline()[:-1]
+
+  if header['encryption']==b'none':
+    pass
+  elif header['encryption']==b'AES-256':
+    #get PBKDF2 parameters to decrypt master key blob
+    header['upSalt'] = unhexlify( f.readline()[:-1] )
+    header['mkSumSalt'] = unhexlify( f.readline()[:-1] )
+    header['round'] = int( f.readline()[:-1] )
+    header['ukIV'] = unhexlify( f.readline()[:-1] )
+    header['mkBlob'] = unhexlify( f.readline()[:-1] )
+    if options.verbose>1:
+      dprint('user password salt:', hexlify( header['upSalt']) )
+      dprint('master key checksum salt:', hexlify(header['mkSumSalt']) )
+      dprint('number of PBKDF2 rounds:', header['round'] )
+      dprint('user key IV:', hexlify(header['ukIV']) )
+      dprint('master key blob:', hexlify(header['mkBlob']) )
+  else:
+    raise RuntimeError(f"Unsupported encryption scheme: {header['encryption']}")
+  return header
+
 def masterKeyJavaConversion(k):
   """
   because of byte to Java char before using password data as PBKDF2 key, special handling is required
@@ -122,12 +147,9 @@ f=open(options.backup,'rb')
 if f.readline()[:-1]!=b'ANDROID BACKUP':
   dprint('not ANDROID BACKUP')
   exit(1)
-  
-#parse header   
-header = dict()  
-header['version'] = f.readline()[:-1]
-header['compression'] = f.readline()[:-1]
-header['encryption'] = f.readline()[:-1]
+
+#parse header
+header = readHeader(f)
 if options.verbose>1:
   dprint(header)
 
@@ -135,18 +157,6 @@ if header['encryption']==b'AES-256':
   if options.password is None:
     options.password = inputtty("Enter Password: ")
   password = options.password.encode('utf-8')
-  #get PBKDF2 parameters to decrypt master key blob
-  header['upSalt'] = unhexlify( f.readline()[:-1] )
-  header['mkSumSalt'] = unhexlify( f.readline()[:-1] )
-  header['round'] = int( f.readline()[:-1] )
-  header['ukIV'] = unhexlify( f.readline()[:-1] )
-  header['mkBlob'] = unhexlify( f.readline()[:-1] )
-  if options.verbose>1:
-    dprint('user password salt:', hexlify( header['upSalt']) )
-    dprint('master key checksum salt:', hexlify(header['mkSumSalt']) )
-    dprint('number of PBKDF2 rounds:', header['round'] )
-    dprint('user key IV:', hexlify(header['ukIV']) )
-    dprint('master key blob:', hexlify(header['mkBlob']) )
   # generate AES key from password and salt
   key = PBKDF2(password, header['upSalt'], 32, header['round']) #default algo is sha1
   # decrypt master key blob 
