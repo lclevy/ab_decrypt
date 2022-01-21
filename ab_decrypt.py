@@ -21,6 +21,8 @@ import codecs
 from struct import pack
 import ctypes
 
+CHUNK_SIZE=128*1024
+
 def inputtty(prompt=""):
   if platform.system() == "Windows":
     return input(prompt)
@@ -85,15 +87,20 @@ def masterKeyJavaConversion(k):
 
   return bytes( b''.join(toUft8) )
 
-def decompress(compressedData, blockSize=128*1024):
+def chunkReader(f, chunkSize=CHUNK_SIZE):
+  data = f.read(chunkSize)
+  while data:
+    yield data
+    data = f.read(chunkSize)
+
+def decrypt(encryptedIter, aesobj, chunkSize=CHUNK_SIZE):
+  for encrypted in encryptedIter:
+    yield aesobj.decrypt(encrypted)
+
+def decompress(compressedDataIter, blockSize=CHUNK_SIZE):
   decompressobj = zlib.decompressobj()
-  while compressedData:
-    block = compressedData[:blockSize]
-    if len(compressedData) > blockSize:
-      compressedData = compressedData[blockSize:]
-    else:
-      compressedData = compressedData[:0]
-    yield decompressobj.decompress(block)
+  for compressedData in compressedDataIter:
+    yield decompressobj.decompress(compressedData)
   yield decompressobj.flush()
   if not decompressobj.eof:
     raise RuntimeError("incomplete or truncated zlib stream")
@@ -169,17 +176,12 @@ if header['encryption']==b'AES-256':
   else:
     print('password verification is OK')  
   
-  encrypted = f.read()
-  if options.verbose:
-    print('decrypting',len(encrypted),'bytes... ', end='')
-  # decryption using master key and iv  
-  decryptedData = AES.new(mk, AES.MODE_CBC, iv).decrypt( encrypted )
-  if options.verbose:
-    print('OK')
+  # decryption using master key and iv
+  compressedIter = decrypt(chunkReader(f), AES.new(mk, AES.MODE_CBC, iv))
 
 elif header['encryption']=='none':
   print('no encryption') 
-  decryptedData = f.read()
+  compressedIter = chunkReader(f)
 else:
   print('unknown encryption')
   exit()
@@ -189,7 +191,7 @@ if options.verbose:
 # decompression (zlib stream)
 out = open(options.output,'wb')
 print('writing backup as .tar ... ', end='', flush=True)
-for decData in decompress(decryptedData):
+for decData in decompress(compressedIter):
   out.write(decData)
 print(f'OK. Filename is \'{options.output}\', {out.tell()} bytes written.')
 out.close()
