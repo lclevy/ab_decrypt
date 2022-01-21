@@ -12,14 +12,14 @@
 
 import sys
 import platform
+import codecs
+import ctypes
 import zlib
 from binascii import unhexlify, hexlify
 from Crypto.Protocol.KDF import PBKDF2
 from Crypto.Cipher import AES
 from optparse import OptionParser
-import codecs
 from struct import pack
-import ctypes
 
 VERBOSITY=0
 CHUNK_SIZE=128*1024
