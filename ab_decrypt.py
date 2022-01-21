@@ -166,7 +166,7 @@ def decompress(compressedDataIter, blockSize=CHUNK_SIZE):
   if not decompressobj.eof:
     raise RuntimeError("incomplete or truncated zlib stream")
 
-def ab2tar(f, options):
+def ab2tar(f, fout, password=None):
   if f.readline()[:-1]!=b'ANDROID BACKUP':
     dprint('not ANDROID BACKUP')
     return False
@@ -177,9 +177,9 @@ def ab2tar(f, options):
     dprint(header)
 
   if header['encryption']==b'AES-256':
-    if options.password is None:
-      options.password = inputtty("Enter Password: ")
-    password = options.password.encode('utf-8')
+    if password is None:
+      password = inputtty("Enter Password: ")
+    password = password.encode('utf-8')
     compressedIter = decrypt(chunkReader(f), getAESDecrypter(header, password))
   elif header['encryption']==b'none':
     dprint('no encryption')
@@ -189,15 +189,10 @@ def ab2tar(f, options):
     return False
 
   # decompression (zlib stream)
-  if options.output == '-':
-    out = sys.stdout.buffer
-  else:
-    out = open(options.output,'wb')
   dprint('writing backup as .tar ... ', end='', flush=True)
   for decData in decompress(compressedIter):
-    out.write(decData)
-  dprint(f'OK. Filename is \'{options.output}\', {out.tell()} bytes written.')
-  out.close()
+    fout.write(decData)
+  dprint(f'OK. Filename is \'{fout.name}\', {fout.tell()} bytes written.')
   return True
 
 def main(argv):
@@ -214,8 +209,14 @@ def main(argv):
     dprint('-b argument is mandatory')
     return 1
 
+  if options.output == '-':
+    fout = sys.stdout.buffer
+  else:
+    fout = open(options.output,'wb')
+
   with open(options.backup,'rb') as abfile:
-    return int(not ab2tar(abfile, options))
+    return int(not ab2tar(abfile, fout, options.password))
+  fout.close()
 
 if __name__ == "__main__":
   exit(main(sys.argv[1:]))
