@@ -102,8 +102,7 @@ if options.verbose>1:
 
 if header['encryption']==b'AES-256':
   if options.password is None:
-    print('-p argument is mandatory')
-    exit()
+    options.password = input("Enter Password: ")
   password = options.password.encode('utf-8')
   #get PBKDF2 parameters to decrypt master key blob
   header['upSalt'] = unhexlify( f.readline()[:-1] )
