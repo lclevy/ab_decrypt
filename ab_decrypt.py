@@ -12,10 +12,10 @@
 
 import sys
 import platform
+import zlib
 from binascii import unhexlify, hexlify
 from Crypto.Protocol.KDF import PBKDF2
 from Crypto.Cipher import AES
-from zlib import decompress
 from optparse import OptionParser
 import codecs
 from struct import pack
@@ -85,6 +85,18 @@ def masterKeyJavaConversion(k):
 
   return bytes( b''.join(toUft8) )
 
+def decompress(compressedData, blockSize=128*1024):
+  decompressobj = zlib.decompressobj()
+  while compressedData:
+    block = compressedData[:blockSize]
+    if len(compressedData) > blockSize:
+      compressedData = compressedData[blockSize:]
+    else:
+      compressedData = compressedData[:0]
+    yield decompressobj.decompress(block)
+  yield decompressobj.flush()
+  if not decompressobj.eof:
+    raise RuntimeError("incomplete or truncated zlib stream")
 
 parser = OptionParser()
 parser.add_option("-p", "--pw", dest="password", help="password")
@@ -174,14 +186,12 @@ else:
   
 if options.verbose:
   print('decompression... ', end='')
-# decompression (zlib stream)  
-decompressed = decompress(decryptedData)
-if options.verbose:
-  print('done (',len(decompressed),'bytes )')
-print('writing backup as .tar ... ', end='')
+# decompression (zlib stream)
 out = open(options.output,'wb')
-out.write(decompressed)
-print('OK. Filename is \''+options.output+'\'')  
-out.close()  
-  
+print('writing backup as .tar ... ', end='', flush=True)
+for decData in decompress(decryptedData):
+  out.write(decData)
+print(f'OK. Filename is \'{options.output}\', {out.tell()} bytes written.')
+out.close()
+
 f.close()
