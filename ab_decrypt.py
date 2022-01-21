@@ -190,7 +190,7 @@ if header['encryption']==b'AES-256':
   # decryption using master key and iv
   compressedIter = decrypt(chunkReader(f), AES.new(mk, AES.MODE_CBC, iv))
 
-elif header['encryption']=='none':
+elif header['encryption']==b'none':
   dprint('no encryption')
   compressedIter = chunkReader(f)
 else:
