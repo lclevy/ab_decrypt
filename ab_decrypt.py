@@ -113,6 +113,40 @@ def masterKeyJavaConversion(k):
 
   return toUft8
 
+def getAESDecrypter(header, password):
+  assert header['encryption']==b'AES-256', f"Not using AES decryption: {header['encryption']}"
+  # generate AES key from password and salt
+  key = PBKDF2(password, header['upSalt'], 32, header['round']) #default algo is sha1
+  # decrypt master key blob
+  decrypted = AES.new(key, AES.MODE_CBC, header['ukIV']).decrypt( header['mkBlob'] )
+  # parse decrypted blob
+  Niv = decrypted[0] # IV length
+  iv = decrypted[1:1+Niv] # AES CBC IV
+  Nmk = ord( decrypted[1+Niv:1+Niv+1] ) # master key length
+  mk = decrypted[1+Niv+1:1+Niv+1+Nmk] # AES 256 key
+  Nck = ord( decrypted[1+Niv+1+Nmk:1+Niv+1+Nmk+1] ) # check value length
+  ck = decrypted[1+Niv+1+Nmk+1:1+Niv+1+Nmk+1+Nck] # check value
+  if options.verbose>1:
+    dprint('IV length:',Niv)
+    dprint('IV:',hexlify(iv))
+    dprint('master key length:',Nmk)
+    dprint('master key:',hexlify(mk))
+    dprint('check value length:',Nck)
+    dprint('check value:',hexlify(ck))
+  
+  #verify password
+  toBytes2 = masterKeyJavaConversion( bytearray(mk) ) # consider data as bytes, not str
+  if options.verbose>1:
+    dprint('PBKDF2 secret value for password verification is: ', end='')
+    dprint( hexlify(toBytes2) )
+  ck2 = PBKDF2( toBytes2, header['mkSumSalt'], Nck, header['round'] )
+  if ck2!=ck:
+    dprint( 'computed ck:', hexlify(ck2), 'is different than embedded ck:', hexlify(ck) )
+  else:
+    dprint('password verification is OK')
+  # decryption using master key and iv
+  return AES.new(mk, AES.MODE_CBC, iv)
+
 def chunkReader(f, chunkSize=CHUNK_SIZE):
   data = f.read(chunkSize)
   while data:
@@ -157,39 +191,7 @@ if header['encryption']==b'AES-256':
   if options.password is None:
     options.password = inputtty("Enter Password: ")
   password = options.password.encode('utf-8')
-  # generate AES key from password and salt
-  key = PBKDF2(password, header['upSalt'], 32, header['round']) #default algo is sha1
-  # decrypt master key blob 
-  decrypted = AES.new(key, AES.MODE_CBC, header['ukIV']).decrypt( header['mkBlob'] )
-  # parse decrypted blob
-  Niv = decrypted[0] # IV length
-  iv = decrypted[1:1+Niv] # AES CBC IV
-  Nmk = ord( decrypted[1+Niv:1+Niv+1] ) # master key length
-  mk = decrypted[1+Niv+1:1+Niv+1+Nmk] # AES 256 key
-  Nck = ord( decrypted[1+Niv+1+Nmk:1+Niv+1+Nmk+1] ) # check value length
-  ck = decrypted[1+Niv+1+Nmk+1:1+Niv+1+Nmk+1+Nck] # check value
-  if options.verbose>1:
-    dprint('IV length:',Niv)
-    dprint('IV:',hexlify(iv))
-    dprint('master key length:',Nmk)
-    dprint('master key:',hexlify(mk))
-    dprint('check value length:',Nck)
-    dprint('check value:',hexlify(ck))
-    
-  #verify password
-  toBytes2 = masterKeyJavaConversion( bytearray(mk) ) # consider data as bytes, not str
-  if options.verbose>1:
-    dprint('PBKDF2 secret value for password verification is: ', end='')
-    dprint( hexlify(toBytes2) )
-  ck2 = PBKDF2( toBytes2, header['mkSumSalt'], Nck, header['round'] ) 
-  if ck2!=ck:
-    dprint( 'computed ck:', hexlify(ck2), 'is different than embedded ck:', hexlify(ck) )
-  else:
-    dprint('password verification is OK')
-  
-  # decryption using master key and iv
-  compressedIter = decrypt(chunkReader(f), AES.new(mk, AES.MODE_CBC, iv))
-
+  compressedIter = decrypt(chunkReader(f), getAESDecrypter(header, password))
 elif header['encryption']==b'none':
   dprint('no encryption')
   compressedIter = chunkReader(f)
