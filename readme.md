@@ -22,6 +22,10 @@ Copyright Laurent Clévy (@lorenzo2472), november 2016
 
 License is GPLv3
 
+## Contributions ## 
+
+- Glenn Wasbhurn (@crass) : reading and decompressing using chunks, for efficient memory usage. Better code organisation
+
 ## Backup tool
 
 adb tool can be downloaded from https://developer.android.com/studio/releases/platform-tools
